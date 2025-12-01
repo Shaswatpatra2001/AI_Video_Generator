@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Stats Header -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white p-4 rounded-lg shadow text-center">
+            <div class="text-2xl font-bold text-blue-600">{{ total_videos }}</div>
+            <div class="text-gray-600">Total Videos</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow text-center">
+            <div class="text-2xl font-bold text-green-600">{{ completed_videos }}</div>
+            <div class="text-gray-600">Completed</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow text-center">
+            <div class="text-2xl font-bold text-blue-600">{{ processing_videos }}</div>
+            <div class="text-gray-600">Processing</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow text-center">
+            <div class="text-2xl font-bold text-red-600">{{ failed_videos }}</div>
+            <div class="text-gray-600">Failed</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Quick Create Form -->
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-xl font-semibold mb-4 text-blue-600">Quick Create</h3>
+            <form id="quickCreateForm" enctype="multipart/form-data" class="space-y-3">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Store Image</label>
+                    <input type="file" name="store_image" required 
+                           class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Offer Text</label>
+                    <textarea name="offer_text" required 
+                              class="mt-1 block w-full border border-gray-300 rounded-md p-2 h-20" 
+                              placeholder="Enter your amazing offer...">50% OFF on all products! Limited time offer!</textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Location</label>
+                    <input type="text" name="location" required 
+                           class="mt-1 block w-full border border-gray-300 rounded-md p-2" 
+                           value="Main Street Store">
+                </div>
+                
+                <button type="submit" 
+                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200">
+                    🎬 Generate Video
+                </button>
+            </form>
+            
+            <!-- Loading for quick form -->
+            <div id="quickLoading" class="hidden mt-4 p-3 bg-blue-50 rounded-lg">
+                <div class="flex items-center">
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    <span class="ml-2 text-blue-600 text-sm">Generating video...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video List -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-green-600">Recent Videos</h3>
+                <button onclick="loadRecentVideos()" 
+                        class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 transition duration-200">
+                    🔄 Refresh
+                </button>
+            </div>
+            
+            <div id="recentVideosList">
+                {% if videos %}
+                <div class="space-y-4">
+                    {% for video in videos %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-3">
+                                    <h4 class="font-semibold text-lg">{{ video.location }}</h4>
+                                    <span class="px-2 py-1 text-xs rounded-full 
+                                        {% if video.status == 'completed' %}bg-green-100 text-green-800
+                                        {% elif video.status == 'processing' %}bg-blue-100 text-blue-800
+                                        {% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ video.status|title }}
+                                    </span>
+                                </div>
+                                <p class="text-gray-600 mt-1">{{ video.offer_text }}</p>
+                                <p class="text-sm text-gray-500 mt-2">
+                                    Created: {{ video.created_at|date:"M d, Y H:i" }}
+                                </p>
+                            </div>
+                            
+                            {% if video.generated_video_url %}
+                            <div class="flex space-x-2">
+                                <a href="{{ video.generated_video_url }}" target="_blank" 
+                                   class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition duration-200">
+                                    ▶️ Play
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        {% if video.status == 'completed' and video.generated_video_url %}
+                        <div class="mt-3">
+                            <video controls class="w-full rounded-lg" preload="metadata">
+                                <source src="{{ video.generated_video_url }}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8 text-gray-500">
+                    <p class="text-lg">No videos generated yet</p>
+                    <p class="text-sm mt-2">Create your first AI video using the form!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Handle quick create form submission
+document.getElementById('quickCreateForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const loadingDiv = document.getElementById('quickLoading');
+    
+    // Show loading
+    loadingDiv.classList.remove('hidden');
+    
+    fetch('/api/v1/requests/', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingDiv.classList.add('hidden');
+        
+        if (data.id) {
+            alert('✅ Video generation started! Check the recent videos list for status.');
+            loadRecentVideos(); // Refresh the list
+        } else {
+            alert('❌ Error: ' + (data.error || 'Failed to create video'));
+        }
+    })
+    .catch(error => {
+        loadingDiv.classList.add('hidden');
+        alert('❌ Error: ' + error);
+    });
+});
+
+function loadRecentVideos() {
+    fetch('/api/v1/requests/')
+        .then(response => response.json())
+        .then(data => {
+            const recentVideosDiv = document.getElementById('recentVideosList');
+            
+            if (data.length === 0) {
+                recentVideosDiv.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <p class="text-lg">No videos generated yet</p>
+                        <p class="text-sm mt-2">Create your first AI video using the form!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="space-y-4">';
+            data.forEach(video => {
+                const statusColor = video.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                  video.status === 'processing' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800';
+                
+                html += `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-3">
+                                    <h4 class="font-semibold text-lg">${video.location}</h4>
+                                    <span class="px-2 py-1 text-xs rounded-full ${statusColor}">
+                                        ${video.status.charAt(0).toUpperCase() + video.status.slice(1)}
+                                    </span>
+                                </div>
+                                <p class="text-gray-600 mt-1">${video.offer_text}</p>
+                                <p class="text-sm text-gray-500 mt-2">
+                                    Created: ${new Date(video.created_at).toLocaleString()}
+                                </p>
+                            </div>
+                            
+                            ${video.generated_video_url ? `
+                            <div class="flex space-x-2">
+                                <a href="${video.generated_video_url}" target="_blank" 
+                                   class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition duration-200">
+                                    ▶️ Play
+                                </a>
+                            </div>
+                            ` : ''}
+                        </div>
+                        
+                        ${video.status === 'completed' && video.generated_video_url ? `
+                        <div class="mt-3">
+                            <video controls class="w-full rounded-lg" preload="metadata">
+                                <source src="${video.generated_video_url}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            recentVideosDiv.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error loading recent videos:', error);
+            document.getElementById('recentVideosList').innerHTML = `
+                <div class="text-center py-8 text-red-500">
+                    <p>Error loading videos: ${error}</p>
+                </div>
+            `;
+        });
+}
+</script>
+{% endblock %}

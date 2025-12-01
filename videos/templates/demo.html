@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <h2 class="text-3xl font-bold text-gray-800 mb-2">Create AI Video</h2>
+        <p class="text-gray-600">Upload store images and create promotional videos in seconds</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Left: Video Creation Form -->
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-xl font-semibold mb-4 text-blue-600">Create New Video</h3>
+            
+            <form id="videoForm" enctype="multipart/form-data" class="space-y-4">
+                {% csrf_token %}
+                
+                <!-- Store Image -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        🏪 Store Image *
+                    </label>
+                    <input type="file" name="store_image" accept="image/*" required
+                           class="w-full p-2 border border-gray-300 rounded-lg">
+                    <p class="text-xs text-gray-500 mt-1">Upload your store front or interior image</p>
+                </div>
+
+                <!-- Product Image -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        📦 Product Image (Optional)
+                    </label>
+                    <input type="file" name="product_image" accept="image/*"
+                           class="w-full p-2 border border-gray-300 rounded-lg">
+                    <p class="text-xs text-gray-500 mt-1">Upload specific product image</p>
+                </div>
+
+                <!-- Offer Text -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        🎁 Offer Text *
+                    </label>
+                    <textarea name="offer_text" required placeholder="Enter your special offer..."
+                              class="w-full p-3 border border-gray-300 rounded-lg h-24"
+                              >50% OFF on all winter collection! Limited time offer. Visit now!</textarea>
+                </div>
+
+                <!-- Location -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        📍 Store Location *
+                    </label>
+                    <input type="text" name="location" required placeholder="Enter your store location"
+                           class="w-full p-3 border border-gray-300 rounded-lg"
+                           value="New York Downtown Store">
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" 
+                        class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-semibold">
+                    🎬 Generate AI Video
+                </button>
+            </form>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden mt-4 p-4 bg-blue-50 rounded-lg">
+                <div class="flex items-center justify-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span class="ml-3 text-blue-600 font-medium">Generating your AI video... This may take 30-60 seconds</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Recent Videos & Preview -->
+        <div class="space-y-6">
+            <!-- Video Preview -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-green-600">Video Preview</h3>
+                <div id="videoPreview" class="text-center p-8 bg-gray-100 rounded-lg min-h-64 flex items-center justify-center">
+                    <p class="text-gray-500">Your generated video will appear here</p>
+                </div>
+            </div>
+
+            <!-- Recent Videos -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-purple-600">Recent Videos</h3>
+                <div id="recentVideos" class="space-y-3">
+                    <p class="text-gray-500 text-center">No videos generated yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('videoForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const loadingDiv = document.getElementById('loading');
+    const videoPreview = document.getElementById('videoPreview');
+    
+    // Show loading
+    loadingDiv.classList.remove('hidden');
+    videoPreview.innerHTML = '<p class="text-blue-600">⏳ Generating your AI video... Please wait</p>';
+    
+    fetch('/api/v1/requests/', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingDiv.classList.add('hidden');
+        
+        if (data.id) {
+            // Start polling for video status
+            pollVideoStatus(data.id);
+            loadRecentVideos();
+        } else {
+            videoPreview.innerHTML = `<p class="text-red-600">❌ Error: ${data.error || 'Failed to create video'}</p>`;
+        }
+    })
+    .catch(error => {
+        loadingDiv.classList.add('hidden');
+        videoPreview.innerHTML = `<p class="text-red-600">❌ Error: ${error}</p>`;
+    });
+});
+
+function pollVideoStatus(videoId) {
+    const videoPreview = document.getElementById('videoPreview');
+    
+    const checkStatus = () => {
+        fetch(`/api/v1/requests/${videoId}/status/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed' && data.generated_video_url) {
+                    videoPreview.innerHTML = `
+                        <div class="w-full">
+                            <h4 class="font-semibold mb-2 text-green-600">✅ Video Ready!</h4>
+                            <video controls class="w-full rounded-lg shadow-md">
+                                <source src="${data.generated_video_url}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                            <div class="mt-2">
+                                <a href="${data.generated_video_url}" target="_blank" 
+                                   class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">
+                                   📥 Download Video
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                } else if (data.status === 'processing') {
+                    videoPreview.innerHTML = '<p class="text-blue-600">⏳ Video is being generated... Still processing</p>';
+                    setTimeout(checkStatus, 3000); // Check again in 3 seconds
+                } else if (data.status === 'failed') {
+                    videoPreview.innerHTML = `<p class="text-red-600">❌ Video generation failed: ${data.error_message || 'Unknown error'}</p>`;
+                } else {
+                    setTimeout(checkStatus, 3000); // Check again in 3 seconds
+                }
+            })
+            .catch(error => {
+                videoPreview.innerHTML = `<p class="text-red-600">❌ Error checking status: ${error}</p>`;
+            });
+    };
+    
+    // Start polling
+    checkStatus();
+}
+
+function loadRecentVideos() {
+    fetch('/api/v1/requests/')
+        .then(response => response.json())
+        .then(data => {
+            const recentVideosDiv = document.getElementById('recentVideos');
+            
+            if (data.length === 0) {
+                recentVideosDiv.innerHTML = '<p class="text-gray-500 text-center">No videos generated yet</p>';
+                return;
+            }
+            
+            let html = '';
+            data.slice(0, 5).forEach(video => {
+                const statusColor = video.status === 'completed' ? 'text-green-600' : 
+                                  video.status === 'processing' ? 'text-blue-600' : 'text-red-600';
+                const statusIcon = video.status === 'completed' ? '✅' : 
+                                 video.status === 'processing' ? '⏳' : '❌';
+                
+                html += `
+                    <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-medium">${video.location}</p>
+                                <p class="text-sm text-gray-600">${video.offer_text.substring(0, 50)}...</p>
+                            </div>
+                            <span class="${statusColor}">${statusIcon} ${video.status}</span>
+                        </div>
+                        ${video.generated_video_url ? `
+                        <div class="mt-2">
+                            <a href="${video.generated_video_url}" target="_blank" 
+                               class="text-blue-600 text-sm hover:underline">Watch Video</a>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            recentVideosDiv.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error loading recent videos:', error);
+        });
+}
+
+// Load recent videos when page loads
+document.addEventListener('DOMContentLoaded', loadRecentVideos);
+</script>
+{% endblock %}
