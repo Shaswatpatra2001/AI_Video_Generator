@@ -1,3 +1,7 @@
+"""
+URL configuration for ai_video_generator project.
+"""
+
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -10,7 +14,7 @@ schema_view = get_schema_view(
     openapi.Info(
         title="AI Video Generator API",
         default_version='v1',
-        description="API for generating AI videos for merchants",
+        description="API for generating AI videos using Google Gemini Veo",
         terms_of_service="https://www.google.com/policies/terms/",
         contact=openapi.Contact(email="contact@aivideo.local"),
         license=openapi.License(name="BSD License"),
@@ -21,7 +25,7 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('videos.urls')),
+    path('api/v1/', include('videos.urls')),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
